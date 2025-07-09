@@ -11,22 +11,62 @@ total_ingresos DECIMAL(12,2),
 creado_en DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS ingredientes (
+    id              INT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(80),
+    categoria VARCHAR(80),
+    stock INT NOT NULL DEFAULT 0
+);
+
 CREATE TABLE IF NOT EXISTS alerta_stock (
   id              INT AUTO_INCREMENT PRIMARY KEY,
-  ingrediente_id  INT UNSIGNED NOT NULL,
+  ingrediente_id  INT NOT NULL,
   stock_actual    INT NOT NULL,
   fecha_alerta    DATETIME NOT NULL,
   creado_en DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (ingrediente_id) REFERENCES ingrediente(id)
+  FOREIGN KEY (ingrediente_id) REFERENCES ingredientes(id)
 );
 ```
 
 ## 1
 1. Resumen Diario Único : crear un evento que genere un resumen de ventas **una sola vez** al finalizar el día de ayer y luego se elimine automáticamente llamado `ev_resumen_diario_unico`.
 ```sql
--- tener een cuenta el uso de procedimientos en lugar de select simples
--- solucion 
+-- 1
+-- SOLUCION 
+-- procedimiento
+DELIMITER $$
+
+CREATE PROCEDURE ev_resumen_diario_unico (
+  rvp_fecha DATE,
+  rvp_total_pedidos INT,
+  rvp_total_ingresos DECIMAL(12,2)
+) 
+BEGIN
+  INSERT INTO resumen_ventas(fecha, total_pedidos, total_ingresos) 
+  VALUES (rvp_fecha, rvp_total_pedidos, rvp_total_ingresos);
+END $$
+
+DELIMITER ;
+
+-- evento
+DELIMITER $$
+
+CREATE EVENT resumen_ventas_event 
+ON SCHEDULE  
+  AT TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 1 SECOND))
+ON COMPLETION NOT PRESERVE 
+ENABLE 
+COMMENT 'evento que saca resumen una vez al dia sin guardarse automaticamente'
+DO
+BEGIN 
+  CALL ev_resumen_diario_unico('2025-09-09', 13, 41000.00);
+END $$
+
+DELIMITER ;
+-- verificar despues del evento 
+SELECT * FROM resumen_ventas;
 ```
+![alt text](image.png)
 
 
 ## 2
