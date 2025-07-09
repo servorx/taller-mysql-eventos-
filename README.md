@@ -3,6 +3,8 @@
 Haciendo uso de las siguientes tablas para la base de datos de `pizza` realice los siguientes ejercicios de `Events`  centrados en el uso de **ON COMPLETION PRESERVE** y **ON COMPLETION NOT PRESERVE** :
 
 ```sql
+CREATE DATABASE cocina;
+USE cocina;
 
 CREATE TABLE IF NOT EXISTS resumen_ventas (
 fecha       DATE      PRIMARY KEY,
@@ -73,8 +75,47 @@ SELECT * FROM resumen_ventas;
 2. Resumen Semanal Recurrente: cada lunes a las 01:00 AM, generar el total de pedidos e ingresos de la semana pasada, **manteniendo** el evento para que siga ejecutándose cada semana llamado `ev_resumen_semanal`.
 ```sql
 -- solucion
-```
+-- procedimiento
+DELIMITER $$
 
+CREATE PROCEDURE pr_resumen_general()
+BEGIN
+  DECLARE pr_fecha DATE;
+  DECLARE pr_total_pedidos INT;
+  DECLARE pr_total_ingresos DECIMAL(12,2);
+
+  SET pr_fecha = DATE_SUB(CURDATE(), INTERVAL 7 DAY);
+
+  SELECT COUNT(*), SUM(total)
+  INTO pr_total_pedidos, pr_total_ingresos
+  FROM pedidos
+  WHERE YEARWEEK(fecha, 1) = YEARWEEK(CURDATE() - INTERVAL 1 WEEK, 1);
+
+  INSERT INTO resumen_ventas(fecha, total_pedidos, total_ingresos) VALUES (pr_fecha, pr_total_pedidos, pr_total_ingresos);
+END $$
+
+DELIMITER ;
+-- evento
+DELIMITER $$
+CREATE EVENT ev_resumen_general
+ON SCHEDULE 
+  EVERY 1 WEEK 
+  STARTS TIMESTAMP(CURRENT_DATE + INTERVAL (8 - WEEKDAY(CURRENT_DATE)) DAY + INTERVAL 1 HOUR)
+ON COMPLETION PRESERVE
+ENABLE
+COMMENT 'crear un evento de creacion de resumen de ventas cada lunes en la mañana'
+DO 
+BEGIN 
+  CALL pr_resumen_general();
+END $$
+
+DELIMITER ; 
+-- probar para ver si funciona 
+-- esto es para ver la existencia del EVENTO y el procedimiento
+SHOW EVENTS;
+SHOW PROCEDURE STATUS WHERE Db = "hola";
+```
+![alt text](image-1.png)
 ## 3
 3. Alerta de Stock Bajo Única: en un futuro arranque del sistema (requerimiento del sistema), generar una única pasada de alertas (`alerta_stock`) de ingredientes con stock < 5, y luego autodestruir el evento.
 ```sql
