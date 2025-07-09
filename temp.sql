@@ -43,7 +43,7 @@ CREATE PROCEDURE pr_resumen_general(
   pr_total_ingresos DECIMAL(12,2)
 )
 BEGIN
-  INSERT 
+  INSERT INTO resumen_ventas(fecha, total_pedidos, total_ingresos) VALUES (pr_fecha, pr_total_pedidos, pr_total_ingresos);
 END $$
 
 DELIMITER ;
