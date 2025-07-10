@@ -120,16 +120,90 @@ SHOW PROCEDURE STATUS WHERE Db = "hola";
 3. Alerta de Stock Bajo Única: en un futuro arranque del sistema (requerimiento del sistema), generar una única pasada de alertas (`alerta_stock`) de ingredientes con stock < 5, y luego autodestruir el evento.
 ```sql
 -- solucion
+-- generar estos inserts y luego esperar
+INSERT INTO ingredientes (nombre, categoria, stock)
+VALUES 
+  ('Queso Mozzarella', 'Lácteo', 10),
+  ('Harina de Trigo', 'Cereal', 8),
+  ('Salsa de Tomate', 'Salsas', 12);
+INSERT INTO ingredientes (nombre, categoria, stock)
+VALUES 
+  ('Albahaca', 'Hierbas', 2),
+  ('Aceitunas Negras', 'Vegetales', 1),
+  ('Jamón Serrano', 'Cárnicos', 4);
+
+DELIMITER $$
+
+CREATE PROCEDURE pr_alerta_stock()
+BEGIN 
+  DECLARE stock INT;
+  -- se insertan los valores de alerta_stock con el select en lugar de VALUES  
+  INSERT INTO alerta_stock (ingrediente_id, stock_actual, fecha_alerta)
+  SELECT id, stock, NOW()
+  FROM ingredientes
+  WHERE stock < 5;
+END $$
+
+DELIMITER ;
+-- evento
+DELIMITER $$
+
+CREATE EVENT ev_alerta_stock
+ON SCHEDULE
+AT INTERVAL 15 SECOND
+ON COMPLETION NOT PRESERVE
+ENABLE
+COMMENT 'alerta de stock bajo'
+DO 
+BEGIN
+  CALL pr_alerta_stock();
+END $$
+
+DELIMITER ;
+-- PROBAR para ver si funciona el evento
+SHOW EVENTS \G
+
+-- luego de 20 segundos ejecutar 
+SELECT * FROM alerta_stock;
 ```
+![alt text](image-3.png)
 
 ## 4 
 4. Monitoreo Continuo de Stock: cada 30 minutos, revisar ingredientes con stock < 10 e insertar alertas en `alerta_stock`, **dejando** el evento activo para siempre llamado `ev_monitor_stock_bajo`.
 ```sql
 -- solucion
 ```
-
+![alt text](image-2.png)
 ## 5
 5. Limpieza de Resúmenes Antiguos: una sola vez, eliminar de `resumen_ventas` los registros con fecha anterior a hace 365 días y luego borrar el evento llamado `ev_purgar_resumen_antiguo`.
 ```sql
 -- solucion
+-- procedimiento
+DELIMITER $$
+
+CREATE PROCEDURE pr_purgar_resumen_antiguo()
+BEGIN 
+  DELETE FROM resumen_ventas
+  WHERE fecha < CURDATE() - INTERVAL 365 DAY;
+END $$
+
+DELIMITER ;
+-- evento 
+DELIMITER $$
+
+CREATE EVENT ev_purgar_resumen_antiguo
+ON SCHEDULE
+AT NOW() + INTERVAL 1 MINUTE
+ON COMPLETION NOT PRESERVE
+ENABLE
+COMMENT 'Limpieza única de resúmenes con más de 1 año de antigüedad'
+DO 
+BEGIN
+  CALL pr_purgar_resumen_antiguo();
+END $$
+
+DELIMITER ;
+-- prueba
+SELECT * FROM resumen_ventas;
 ```
+![alt text](image-4.png)

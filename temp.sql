@@ -33,6 +33,10 @@
 -- -- verificar despues del minuto 
 -- SELECT * FROM resumen_ventas;
 
+
+
+
+
 -- -- 2 
 -- -- procedimiento
 -- DELIMITER $$
@@ -74,6 +78,10 @@
 -- SHOW EVENTS;
 -- SHOW PROCEDURE STATUS WHERE Db = "hola";
 
+
+
+
+-- 3
 -- procedimiento
 -- generar estos inserts y luego esperar
 INSERT INTO ingredientes (nombre, categoria, stock)
@@ -86,6 +94,7 @@ VALUES
   ('Albahaca', 'Hierbas', 2),
   ('Aceitunas Negras', 'Vegetales', 1),
   ('Jamón Serrano', 'Cárnicos', 4);
+
 DELIMITER $$
 
 CREATE PROCEDURE pr_alerta_stock()
@@ -104,7 +113,7 @@ DELIMITER $$
 
 CREATE EVENT ev_alerta_stock
 ON SCHEDULE
-AT NOW() + INTERVAL 15 SECOND
+AT INTERVAL 15 SECOND
 ON COMPLETION NOT PRESERVE
 ENABLE
 COMMENT 'alerta de stock bajo'
@@ -119,3 +128,67 @@ SHOW EVENTS \G
 
 -- luego de 20 segundos ejecutar 
 SELECT * FROM alerta_stock;
+
+
+
+
+-- 4
+-- procedimiento
+DELIMITER $$
+
+CREATE PROCEDURE pr_monitor_stock_bajo()
+BEGIN 
+  INSERT INTO alerta_stock (ingrediente_id, stock_actual, fecha_alerta)
+  SELECT id, stock, NOW()
+  FROM ingredientes
+  WHERE stock < 10;
+END $$
+
+DELIMITER ;
+-- evento
+DELIMITER $$
+
+CREATE EVENT ev_monitor_stock_bajo
+ON SCHEDULE
+EVERY 30 MINUTE
+STARTS NOW()
+ON COMPLETION PRESERVE
+ENABLE
+COMMENT 'monitoreo constante de ingredientes con stock bajo'
+DO 
+BEGIN
+  CALL pr_monitor_stock_bajo();
+END $$
+
+DELIMITER ;
+-- PRUEBA
+SELECT * FROM alerta_stock;
+
+-- 5 
+-- procedimiento
+DELIMITER $$
+
+CREATE PROCEDURE pr_purgar_resumen_antiguo()
+BEGIN 
+  DELETE FROM resumen_ventas
+  WHERE fecha < CURDATE() - INTERVAL 365 DAY;
+END $$
+
+DELIMITER ;
+-- evento 
+DELIMITER $$
+
+CREATE EVENT ev_purgar_resumen_antiguo
+ON SCHEDULE
+AT NOW() + INTERVAL 1 MINUTE
+ON COMPLETION NOT PRESERVE
+ENABLE
+COMMENT 'Limpieza única de resúmenes con más de 1 año de antigüedad'
+DO 
+BEGIN
+  CALL pr_purgar_resumen_antiguo();
+END $$
+
+DELIMITER ;
+-- prueba
+SELECT * FROM resumen_ventas;
